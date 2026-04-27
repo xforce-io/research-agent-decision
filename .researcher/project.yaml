@@ -1,0 +1,32 @@
+# project.yaml — structured project soul
+# Edit this to declare your topic's research questions, criteria, sources.
+
+meta:
+  topic_oneline: "Decision agent —— 一种以 multi-agent workers team 形式协同完成任务的决策架构；与之相邻的 openclaw 是 7×24 持续运行的个人助理形态，可作为 decision agent 的上层调度入口。"
+
+research_questions:
+  - id: RQ1
+    text: "How does decision agent 作为独立的 multi-agent workers team 完成端到端任务？"
+  - id: RQ2
+    text: "How can openclaw (7×24 个人助理) 与 decision agent 结合，形成类似经理与员工的协作结构？"
+  - id: RQ3
+    text: "Whether 当前的 decision agent 设计在脱离长期助理上下文 (如 openclaw) 时仍能独立闭环。"
+
+inclusion_criteria:
+  - "结合近期业界发展，能反映 decision agent 的技术路径或未来方向。"
+  - "Must address one of the research questions above."
+
+exclusion_criteria:
+  - "Pure benchmark papers without methodological contribution."  # TODO: revisit after first few papers
+
+sources:
+  - kind: arxiv
+    queries:
+      - "your topic keyword"  # TODO: revisit after first few papers
+    priority: high
+
+paper_axes: []
+
+cadence:
+  default_interval_days: 7
+  backoff_after_empty_runs: 3
