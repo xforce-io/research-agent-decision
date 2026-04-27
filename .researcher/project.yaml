@@ -22,7 +22,11 @@ exclusion_criteria:
 sources:
   - kind: arxiv
     queries:
-      - "your topic keyword"  # TODO: revisit after first few papers
+      - "multi-agent LLM"
+      - "LLM agent decision making"
+      - "agentic workflow orchestration"
+      - "autonomous agent task planning"
+      - "agent collaboration framework"
     priority: high
 
 paper_axes: []
