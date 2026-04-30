@@ -1,155 +1,268 @@
-# Decision Agent: Research Report
+# Decision Agent: Multi-Agent Workers 工程问题地图与下一阶段研究优先级
 
-> **Version:** v6 (6 papers)
+> **Version:** v3.0 (6 papers, 重写)
 > **Last Updated:** 2026-04-30
-> **Papers:** [01](notes/01_co_evolving_llm_decision_and_skill.md), [02](notes/02_graph_of_agents_a_graph_based.md), [03](notes/03_why_reasoning_fails_to_plan_a.md), [04](notes/04_rethinking_the_value_of_multi_agent.md), [05](notes/05_agent_as_a_graph_knowledge_graph.md), [06](notes/06_why_do_multi_agent_llm_systems.md)
+> **Papers:** [01](notes/01_co_evolving_llm_decision_and_skill.md) COS-PLAY · [02](notes/02_graph_of_agents_a_graph_based.md) GoA · [03](notes/03_why_reasoning_fails_to_plan_a.md) FLARE · [04](notes/04_rethinking_the_value_of_multi_agent.md) OneFlow · [05](notes/05_agent_as_a_graph_knowledge_graph.md) Agent-as-a-Graph · [06](notes/06_why_do_multi_agent_llm_systems.md) MAST
 > **Thesis:** [.researcher/thesis.md](.researcher/thesis.md)
 
----
-
-## 步进式推理不够用：从局部最优到结构性失败
-
-最锐利的发现来自 FLARE [3]：步进式 LLM 推理（CoT、ReAct、Reflexion）在形式上等价于最大化局部代理分数的贪心策略。这不是工程缺陷，而是结构性局限——Proposition 3.2/3.3 证明：对任意固定 beam width B，存在使最优轨迹在深度 1 被不可逆剪枝的环境；而 k=1 前瞻在最坏情况下严格优于任意步进策略。
-
-实证数据强化了这一结论：第一步决策中，贪心策略在 55.6% 的情况下选中"陷阱"动作，首步错误后单步恢复概率仅 5.4%。LLaMA-8B + FLARE 频繁超越 GPT-4o + 标准推理 [3: §5.2]——规划能力无法通过参数规模弥补。
-
-这对论题的含义直接：若 decision agent workers 内部采用步进式推理（当前绝大多数实现），在需要超过若干步序列决策的任务上将系统性失败。Workers team 的协同不能掩盖单个 worker 规划机制的根本缺陷。
-
-**关键局限**：FLARE 的实验场景（KGQA 图遍历、ALFWorld 玩具环境）假设确定性状态转移、显式状态表示、规划时可用评估信号——三条假设在开放式 agentic 任务中均可能违背。从图遍历"长时序"到实际多步工具调用工作流的距离尚未测量 [3: Weaknesses]。
+> **形式：** 内部技术报告 / Position Paper
+> **作者：** xupeng
+> **基于：**
+> - 6 篇深读论文（COS-PLAY、GoA、FLARE、OneFlow、Agent-as-a-Graph、MAST）— 索引见 [`notes/`](notes/)
+> - **Decision Agent 项目资料**（脱敏后入 [`references/`](references/)）：产品特性（[01](references/01_decision_agent_features.md)）、工具管理（[02](references/02_decision_agent_tool_management.md)）
+>
+> **目标读者：** Decision Agent / KWeaver / Dolphin 编排引擎 设计与工程团队
+> **目标：** 把学术研究映射到 Decision Agent 当前 5 大痛点（来自 references/01）的具体差距，为**下一阶段架构决策与研究优先级**提供可操作输入
 
 ---
 
-## 技能管理：知道做什么 vs. 如何选择
+## 0. v1 → v6 的关键校准
 
-COS-PLAY [1] 解决的问题与 FLARE 正交：不是"如何在已知动作中选择"，而是"如何构建可复用的动作抽象"。将决策智能体（A_D）与技能库智能体（A_S）解耦并用 GRPO 联合训练，7–25 轮协同进化后：8B 模型在四款单人游戏上平均奖励超 GPT-5.4 25.1%；每技能平均被实例化 12–49 次，2–6 次合约精化 [1: §5.1, §5.3]。
+> **每次 `researcher run` 累加的论文都会修正或证伪 thesis 的某个判断。本节把 6 轮校准的"已被证伪 / 修正 / 支持"汇总——避免历史噪音被新读者误读。**
 
-关键设计发现：技能库分布与决策策略分布必须对齐，错位版本反而降低性能 [1: §5.2]。这意味着技能库不是静态知识库，而是与决策策略共同演化的动态伙伴。技能库智能体跨 episode 无状态运行，为决策智能体独立部署提供支持——但验证域局限于游戏环境。
+| 原始判断（thesis v0 / 项目资料） | 校准后（v1–v6 之后） | 触发论文 |
+|---|---|---|
+| "多智能体 workers team 是 Decision Agent 核心架构挑战" | **有条件成立**：仅当 workers 异质（不同基础 LLM 或独立 LoRA）；同质工作流下 OneFlow 证明单 agent 等价且成本降低 5–10× | [4] OneFlow |
+| "workers 协同失真缺乏学术层面的系统性验证" | **过时**：MAST 已用 1642 traces × 7 MAS 给出 14 类失败模式分类（FC2 协同失真 32.3%，IAA κ=0.88）；Decision Agent 的差异命题应改写为"企业场景下 FC1/FC2/FC3 权重是否与开源 MAS 一致" | [6] MAST |
+| "Plan-Reason-Act 状态机驱动 workers 完成长链任务" | **规划机制层缺陷已被形式化证明**：步进式推理（CoT / ReAct / Reflexion）等价于贪心策略，首步陷阱率 55.6%，恢复概率 5.4%；Dolphin 仅做状态转移机不够，需引入前瞻规划（MCTS） | [3] FLARE |
+| "BKN 语义解耦在超大工具集场景下的有效性尚缺乏系统性验证" | **首份学术实证**：类型化节点 + 加权 RRF（与 BKN 逻辑/行动分离同构）相对"拼接单向量"基线 Recall@5 +14.9%；但验证规模仅 527 工具，远低于企业目标 5k–10k | [5] Agent-as-a-Graph |
+| "技能管理是核心研究方向" | **保留但弱化**：技能-决策协同进化在游戏域已验证；Decision Agent 的工具是固定 BKN 注册表（非动态学习），COS-PLAY 路径与 KWeaver 工程现实正交 | [1] COS-PLAY |
+| "智能体间动态路由是必需的" | **重新定位**：GoA 图式路由在单轮 QA 验证（成本 –58%）；可作为 openclaw → decision agent 的元调度参考，但**不是 Decision Agent 内部 workers team 的核心机制**（多步任务无证据） | [2] GoA |
 
-**与 FLARE 的组合空间**：COS-PLAY 的 A_D 使用 GRPO 训练的策略（规划嵌入权重），FLARE 明确区分"离线 RL 无法在线修订"与"前瞻规划"的差异。若将 FLARE 的前瞻机制叠加到 COS-PLAY 的技能库框架上，理论上可同时获得技能复用和规划深度——但两篇论文均未触及这一组合，属于公开研究缺口。
-
----
-
-## 推理时路由：多智能体协同的低成本起点
-
-GoA [2] 在不同系统层级上回答了另一个问题：推理时如何以最低成本将查询路由到最相关的专家子智能体？四阶段执行（节点采样→边采样→双向消息传递→图池化），GoAMax 用 3 个 agents 在 MMLU、MMLU-Pro、MedMCQA 上超越 MoA 的 6 个 agents，推理成本降低约 58% [2: §4.2, Table 2]。
-
-GoA 的贡献对论题的映射是间接的：它验证了"元 LLM 按查询动态路由至专家子智能体"的可行性，可作为 openclaw→decision agent 调度链的轻量实现参考。但其验证场景（单轮多域 QA）与多步任务执行的距离和 FLARE 的 KGQA 场景一样大——GoA 的"专家子智能体"是单轮推理者，不是能执行多步工作流的 decision agent workers。
-
----
-
-## 多智能体结构是否必要？同质工作流的挑战
-
-[4] 对论题的冲击最直接。OneFlow 形式化证明：在确定性工具副作用、可见历史路由、共享随机性三个条件下，单 LLM 模拟器与多智能体系统的轨迹分布完全等价（Proposition 1）[4: §3.1]。实证结果紧随其后：OneFlow 单智能体在 6 个公开基准上匹配或超越 AFlow 多智能体，成本降低 5–10×（HumanEval: $0.020 vs. $0.198）[4: §4.2.1, Table 1–2]。TravelPlanner 上，单智能体 Pareto 优于多智能体（精度更高，成本更低）[4: Fig. 3]。
-
-这对论题的挑战是有条件的。[4] 的等价结论有一个关键前提：**同质工作流**（|B(W)| = 1，所有 agents 共享同一基础 LLM）。这正是 Decision Agent 架构需要首先回答的问题：
-
-- 如果 Decision Agent 的 workers 本质上只是同一 LLM 加不同 prompt（同质配置），[4] 意味着多智能体调度开销毫无必要——单智能体顺序执行即可。
-- 如果 BKN 语义层、ContextLoader 动态加载、ISF 安全层、Dolphin 状态机各自引入了不同的基础模型或专化 LoRA 适配器（异质配置），[4] 的结论不适用，多智能体协同仍然必要。
-
-[4] 自己提供了分界线：COS-PLAY [1] 使用独立 LoRA 适配器的异质双智能体，明确落在"单 LLM 模拟无法捕获"的场景 [4: §6]。但对于 Decision Agent，这个异质性是否为真，目前尚无实证回答。
-
-**异质性不是默认成立的工程假设。** 在确认 Decision Agent 属于异质配置之前，"多智能体 workers team 是核心架构"这一论题前提是未经检验的。[4] 将"证明多智能体必要性"从隐含假设变成了需要主动回答的问题。
-
-**[4] 的关键局限**：所有实验 temperature=0（等价结论不覆盖随机采样）；最复杂基准为 TravelPlanner（单会话规划，非多会话企业工作流）；异质场景实验标记为"pilot"，未充分优化；并行 fan-out-fan-in 工作流未覆盖 [4: §Weaknesses]。
+**保留为正确的部分**：
+- ContextLoader 动态按需加载（90%+ 上下文节省）作为 Decision Agent 与通用 Agent 的核心工程差异——[5] 在 527 工具规模上提供了类型化结构的实证支撑
+- 全链路可观测、可审计、可评测作为产品差异化——MAST [6] 的诊断范式可直接套到 Decision Agent 自家轨迹
+- BKN 作为统一语义底座抑制工具幻觉的方向——[5] 提供首份与 BKN 同构的对比实证
+- "决策提效 + 知识可信 + 流程自动化 + 数据资产可用 + 风险可控" 5 大业务价值定位——6 篇论文均未挑战
 
 ---
 
-## 调用前的检索层：BKN 语义解耦的首份实证
+## 1. Decision Agent 真实战略坐标
 
-Decision Agent 的产品文档把"工具检索/召回"列为最大的工程瓶颈：企业可能有数千工具，全量加载不现实，BKN 通过"逻辑（业务意图）/ 行动（具体执行）"显式分离 + 业务对象关联来抑制工具幻觉 [references/02 §方案二]。Agent-as-a-Graph [5] 在学术层面给出了与 BKN 同构的设计选择的直接对比实验。
+> 本节定义"研究输入服务于什么决策"。脱离这个坐标，论文综述就只是综述。
 
-在 LiveMCPBench（70 服务器/527 工具/95 问题）上，[5] 把工具与父 agent 建为二部图的两类节点，分别在统一向量空间 top-N 检索，再用类型加权 RRF（αT/(k+r) 用于工具节点，αA/(k+r) 用于 agent 节点）重排，最后沿 owner 边遍历至 K 个唯一 agent。Recall@5 = 0.85、nDCG@5 = 0.47，相对前 SOTA ScaleMCP（"拼接单向量"基线）+14.9%/+14.6% [5: §4.2, Table 1]。
+### 1.1 产品形态（references/01）
 
-**这 14.9% 的来源很重要**：它不是更好的 embedding 或更大的索引，而是**把工具描述和 agent 描述从同一向量中拆出来变成显式的两类节点**。这与 BKN 的"逻辑/行动分离"在结构上同构——把语义不同的两层关注点从"拼接成一段文本"重构为"分别建模并通过显式关系连接"。论题原本将 BKN 列为"主要防御机制"但承认"在超大工具集场景下的有效性尚缺乏系统性验证"——[5] 在 527 工具量级上首次给出了这一架构选择的实证证据。
+Decision Agent **不是 agentic harness，是企业核心业务的专有 Agent 平台**：BKN 语义底座 + ContextLoader 上下文按需加载 + Dolphin 编排引擎 + ISF 安全层 + Autoflow 流程编排，覆盖配置-测评-运行-可观测-优化的全生命周期。
 
-**类型权重的可调性是一个工程信号**。最优 αA:αT = 1.5:1（轻度偏向 agent 覆盖）；1:1 退化到 0.83/0.46，3:1 跌至 0.76，1:3 跌至 0.80 [5: §4.4, Figure 2]。这暗示 ContextLoader 的工具选择机制可以暴露同类型的权重旋钮：当查询意图模糊时偏向父技能/父域的覆盖召回，当意图明确时偏向工具级的精准召回。这是一个比"调一组超参"更具体的设计建议。
+业务定位是"专有 Agent 落地 Data+AI 在企业核心业务场景"，**不是通用 multi-agent 框架**。这意味着：
+- 学术上的"多 agent 协同"研究需要先映射到"BKN-driven workers"才有意义
+- 评测维度不是"benchmark 准确率"而是 references/01 §五大业务价值
 
-**架构无关性是迁移性的强信号**。跨 8 种 embedding 模型（Vertex/Gemini/Titan v1-v2/OpenAI ada/3-小/3-大/MiniLM）平均 Recall@5 提升 19.4%，std≈0.02 [5: §4.3, Table 2]——这意味着无论 ContextLoader 选哪种 embedding 后端，类型化结构本身的收益都可以预期。
+### 1.2 五大技术目标的学术映射（references/01 §五大技术目标）
 
-**两个明显的工程缺口**：
-1. **规模差距**。LiveMCPBench 527 工具远低于论题"企业数千工具"目标，也低于 ContextLoader "支持工具规模提升 10 倍以上"声称真正起作用的量级 [references/02 §综合效果]。[5] 不报告 wall-clock 延迟也不分析图遍历成本，无法直接评估在 5k–10k 工具下是否仍可接受。
-2. **超参数选择与测试集污染**。最优 αA:αT 在 LiveMCPBench 上扫描后又在同一基准上报告，没有 held-out 验证集。2.41% 的"加权 RRF 增益"是上界估计；跨域泛化未证实 [5: §Weaknesses]。
+| 技术目标 | 学术覆盖 |
+|---|---|
+| 1 降低开发复杂性（语义建模 + 低代码装配）| 主要靠工程实现；学术研究弱相关 |
+| 2 维护与优化自动化（Agent 全生命周期闭环）| **MAST [6]**：FC 失败模式分类 + IAA 验证可作为"运行轨迹根因定位"骨架 |
+| 3 高质量上下文（精准装配 + 按需加载）| **Agent-as-a-Graph [5]**：类型化召回与 BKN "逻辑/行动分离"同构 |
+| 4 多智能体协同（统一语义 + 动态调度）| **OneFlow [4] / GoA [2] / MAST FC2 [6]**：异质性审计 + 调度参考 + 失败诊断 |
+| 5 安全控制（可审计防御围栏）| 无直接论文；可观测性范式可借 MAST IAA 做基础 |
 
-**对 Decision Agent 的可操作启示**（按工程优先级）：
-- **接受类型化解耦的实证支持**——BKN "逻辑/行动分离"不再只是设计直觉，[5] 提供了直接对比数据；但需要在 KWeaver 自身工具集上复测以确认数字可迁移。
-- **填补规模缺口**——这是论题明确标注的高优先级研究空白，且是一个可由 Decision Agent 团队自身在内部数据上完成的实验（构建 5k+ 规模工具集 + 类型化召回基准），其产出对学术界也有价值。
-- **暴露类型权重作为可调旋钮**——而不是把"工具召回"做成一个不可观测的黑盒。
+### 1.3 五大业务价值的学术不可证伪性
 
----
-
-## MAS 失败的"地图"已经画出来了——但是开源、单会话的版本
-
-MAST [6] 是这批论文里第一个不提架构、只做诊断的工作。它对 7 个开源 MAS（HyperAgent、AppWorld、AG2、ChatDev、MetaGPT、Magentic-One、OpenManus）在编码/数学/常识基准上跑出 1642 条执行轨迹，用扎根理论编码出 14 个失败模式，分布于 3 大类：FC1 系统设计 44.2% / FC2 智能体间错位 32.3% / FC3 任务校验 23.5% [6: §4, Figure 1]。三专家在 MAST 上 Cohen's κ=0.88，OpenAI o1 LLM-as-Judge 标注器 κ=0.77——这是该领域第一份具备可复制度量的失败分类法 [6: §3.2–3.4]。
-
-对论题最直接的影响：thesis §1 写"workers 之间的协同失真、长链规划退化和多智能体调度仲裁，仍缺乏学术层面的系统性验证"。MAST 已经在通用 MAS 层面填补了"协同失真"这一格——FC2 占 32.3%，且其中三大头部失败模式（FM-1.3 步骤重复 15.7%、FM-2.6 推理-动作错位 13.2%、FM-1.5 终止条件无感知 12.4%）足以作为 Decision Agent Dolphin 状态机的对标基线。论题措辞应从"未度量"更新为"已有通用基线，企业多会话场景待对标"——详见 `contradictions.md §Contradiction: 协同失真验证缺口已被部分填补`。
-
-**MAST 的两条横切发现对 Decision Agent 直接有用：**
-
-1. **同模型不同架构差异显著**（同 GPT-4o 下，MetaGPT 比 ChatDev 少 60–68% FC1/FC2 失败，但多 1.56× FC3 失败）[6: §5.1, Figure 9]。这说明架构选择对失败模式分布的影响远超模型选择，且不存在"全方位最优架构"——加上显式审阅阶段（ChatDev）减少 FC1/FC2 但放大 FC3。Dolphin 状态机的设计取舍可以直接套这个权衡：审阅/校验阶段越显式，FC3 风险越高，因此 ISF 安全层不应只检查"是否完成"还要检查"校验是否真的有效"。
-2. **MAST 指导的针对性干预收益可观**：ChatDev 角色规约修复 +9.4%，增加高层目标校验步骤 +15.6%——同模型、不改架构、只改流程就拿到两位数提升 [6: §1, Appendix H]。这意味着 Decision Agent 可以在不动 BKN/ContextLoader/Dolphin 内核的前提下，通过 MAST 风格的失败诊断 + 针对性流程修补获得显著可靠性提升。
-
-**MAST 的关键局限对 Decision Agent 的迁移性有约束：**
-
-- **闭源 MAS 被排除**：Manus 在 ProgramDev 上 60%，但因轨迹不透明被排除出 MAST-Data。Decision Agent 作为商业平台属于这一类——MAST 的失败分布在闭源、企业级 MAS 上是否成立，没有任何直接证据 [6: §1]。
-- **共生评估的循环风险**：MAST 用同一 LLM-as-Judge 既做失败标注又做干预后效果评估，缺乏独立人工复核 [6: §3.3 局限]。Decision Agent 如果照搬这个范式，失败率改进的 9.4%/15.6% 数字需要打折读。
-- **任务复杂度未拆分**：ProgramDev 显式标注为"相对简单"，MAST 没有按任务难度拆分 FC 分布 [6: §D]。Decision Agent 的企业长链任务结构性更复杂，FC1/FC2/FC3 的相对权重很可能与 MAST 报告的 44/32/24 显著偏离。
-- **FC3 数据的解释循环**：带显式校验器的 MAS（MetaGPT、ChatDev）总失败更少但 FC3 占比更高——这部分是架构定义的副产品（校验器把 FC1/FC2 重定向到 FC3），不是干净的根因信号 [6: §4 FC3]。
+references/01 §五大业务价值（决策提效 / 知识可信 / 流程自动化 / 数据资产可用 / 风险可控）是产品价值主张，**不在 6 篇论文的可证伪范围内**——它们由企业落地数据（不是公开 benchmark）证明或证伪。研究输入只能服务于"实现这 5 个价值的工程机制选择"，无法直接背书价值主张本身。
 
 ---
 
-## 几个层次叠加 + 第零层先决条件 + 横切诊断维度：Decision Agent 工程问题地图
+## 2. 当前差距：从 references/01 痛点到学术映射
 
-六篇论文叠加后，Decision Agent 系统面临的挑战可以按"调用生命周期 + 多智能体结构先决 + 横切诊断"组织：先回答第零层结构先决（多智能体是否必要），再依生命周期推进到调用前检索（§1）、智能体间路由（§2）、智能体内技能/规划（§3/§4）；MAST [6] 横切到所有层，提供失败诊断的可观测性维度。
+> references/01 §当前核心痛点列出 5 个待研究支撑的设计缺口。本节把每个痛点对照到 6 篇论文，明确"哪些已被覆盖、哪些仍是开放空白"。
 
-| 层次 | 问题 | 现有答案 | 研究成熟度 |
-|------|------|---------|-----------|
-| **§0 结构先决** | 多智能体结构是否必要（同质 vs. 异质）？ | OneFlow 证明同质等价 [4] | 单会话基准已验证；企业多会话未覆盖 |
-| **§1 调用前检索** | 给定查询/子步，选哪些 agent/工具？ | Agent-as-a-Graph 类型化 KG + 加权 RRF [5] | 527 工具量级已验证；千级以上未覆盖 |
-| §2 智能体间路由 | 选定的 worker 之间如何协同输出？ | GoA 的有向图消息传递 [2] | 单轮 QA 已验证；多步任务未覆盖 |
-| §3 智能体内技能 | Worker 知道做什么（动作抽象）？ | COS-PLAY 的技能库协同进化 [1] | 游戏域已验证；开放任务未覆盖 |
-| §4 智能体内规划 | Worker 如何在动作间选择（规划深度）？ | FLARE 的前瞻 MCTS [3] | 图遍历/玩具环境已验证；开放任务未覆盖 |
-| **§⊥ 横切诊断** | 失败分布在哪里、多大、归因哪类？ | MAST 14 FM × 3 FC 分类法 [6] | 7 个开源 MAS、单会话已验证；闭源/企业未覆盖 |
+| # | 项目资料认定的痛点 | 学术覆盖度 | 关键论文 | 仍开放的部分 |
+|---|---|---|---|---|
+| 1 | **多智能体协同失真**：Agent 间格式不统一，多轮传递信息压缩、丢约束 | 高（通用 MAS）| MAST [6] FC2 32.3%，14 个 FM 中 FM-2.4 信息扣留、FM-2.6 推理-动作错位 13.2% 直接对应 | 企业长链任务 FC2 实测占比未知；BKN 共享 Memory 是否真的降低 FC2 缺自证 |
+| 2 | **全局调度/仲裁缺失**：缺冲突治理，多 Agent 易循环或重复劳动 | 低 | MAST FM-1.3 步骤重复 15.7% 给出"循环"诊断信号；GoA [2] 提供推理时图路由参考 | Dolphin 状态机的仲裁机制无对标；多步任务的"冲突治理"无学术证据 |
+| 3 | **Worker 独立闭环能力**：是否需持续依赖 Dolphin/openclaw 上下文 | 中 | COS-PLAY [1] 技能库智能体跨 episode 无状态运行（间接支持）；FLARE [3] 假设规划信号 r̂ 可用，若 r̂ 只在 manager 持有则反证依赖 | 企业真实任务上的 worker 独立性未测 |
+| 4 | **工具幻觉**：模型越强越严重，BKN 语义解耦待验证 | 中 | Agent-as-a-Graph [5] 类型化节点 +14.9% Recall@5 提供首份与 BKN 同构的实证 | 527 工具远低于企业 5k–10k；KWeaver 自家工具集复测未做；类型权重 αA:αT=1.5:1 在 BKN 数据上是否仍最优未知 |
+| 5 | **长链规划退化**：Plan-Reason-Act 在 >5 步任务质量缺基准 | 高（理论）| FLARE [3] 形式化证明步进式推理结构性不足；前瞻 MCTS 是修复路径 | KGQA / 玩具环境到企业 AutoFlow 的距离未测；MCTS 引入的延迟代价在企业场景的可接受度未知 |
 
-**§0 与 §4 的交互**：[4] 和 [3] 合并提供了一个合成推断（两篇论文均未明确）：多智能体任务分解工作流可折叠为单智能体顺序推理而不损精度 [4]，而单智能体顺序推理本身在长时序任务中因步进式推理结构性不足而失败 [3]。因此，性能天花板由规划机制（§4）决定，而非多智能体通信拓扑（§2）。如果这一推断成立，Decision Agent 的首要工程投入应是 worker 内部规划质量，而非 worker 间协同协议 [low: 合成推断，无直接实验验证]。
-
-**§1 与 §0 的张力**：[5] 在多智能体框架内默认其价值并优化路由层；[4] 质疑同质多智能体的必要性。若 [4] 同质等价结论在 Decision Agent 上成立，[5] 的检索方案失去前提（同质单智能体无需"选 agent"）；若异质性成立，[5] 的类型化召回直接服务于异质 worker 的预选。两者在 Decision Agent 的具体配置审计上互相绑定。
-
-**§⊥ 与 §3 的呼应**：MAST [6] 的 FM-1.5 终止条件无感知（12.4%）和 FM-3.1 过早终止（6.2%）在执行层经验性地佐证了 FLARE [3] 的规划深度论断——这两类失败本质上是"规划者不知道何时停 / 在错的地方停"，是步进式推理在系统执行层留下的指纹 [6: Figure 1; 3: §3.2]。MAST 自己没把这层关系点破，但当 18.6% 的失败属于终止类问题时，前瞻规划机制就不是可选项。
-
-**§⊥ 与 §0 的呼应**：MAST 度量到的 FC2 智能体间错位 32.3% 在 OneFlow [4] 的单 LLM 模拟器构造中被结构性消除——单智能体没有 FC2 的物理基础。这给"多智能体必要性审计"加了一条新维度：异质性不是唯一判据，FC2 失败率本身也应是判据。如果 Decision Agent 在自家轨迹上跑出 FC2 < 5%，那么"workers 协同"就不是核心架构挑战；如果 FC2 > 20%，论题前提即使在异质性满足的情况下也仍站得住。
-
-**共同空白**：六篇论文均未在同一系统中同时解决第零层、横切诊断与四层执行机制问题；均未在开放式真实任务（动态工具集、审批门、延迟奖励）中验证；均未测量异质多智能体协同在企业场景下的精度-成本曲线；MAST 提供了诊断范式但其结论分布（44/32/24）不可直接迁移到企业场景；Agent-as-a-Graph 验证了类型化召回但 527 工具规模远低于 ContextLoader 真正起作用的量级。论题的核心部署主张——decision agent 作为独立组件与 openclaw 形成 manager-worker 关系——目前只有间接支持证据（COS-PLAY 技能库无状态运行 [1: §Relations]），尚无端到端的开放任务实证。
-
-**对 Decision Agent 设计的具体落地建议（基于六篇论文合成）：**
-
-1. **优先做一次自家版 MAST 度量**：在 BKN+ContextLoader+Dolphin+ISF 的真实业务轨迹上做 Grounded Theory 编码 + IAA 验证，得到 Decision Agent 自己的 FM 分布。Open-source MAS 的 44/32/24 是参考点，不是目标 [6: §3]。
-2. **同时做异质性审计**：审 BKN/ContextLoader/Dolphin/ISF 的基础模型与适配器，确认是否满足 OneFlow [4] 的"|B(W)| > 1"条件。两个审计结果（FC 分布 + 异质性）合并起来才能判定多智能体架构是否仍是核心挑战 [4: §3.1]。
-3. **Dolphin 状态机的规划层升级**：FLARE [3] 的前瞻 MCTS 应作为 Dolphin 在长链 AutoFlow 中的规划骨架，而不仅仅是状态转移机。MAST 的 FM-1.5/FM-3.1 共 18.6% 是直接动机 [3: §5; 6: Figure 1]。
-4. **ContextLoader 工具召回的双层验证**：(a) 在自家工具集复测 Agent-as-a-Graph 类型化结构 vs. 拼接基线，确认 +14.9% Recall@5 可迁移 [5: §4.2]；(b) 用 MAST FM-2.4/FM-2.5/FM-2.6 三类失败模式作为定向预防目标，BKN 语义结构化解耦的有效性需在自家度量中验证 [6: §4 FC2; references/02_decision_agent_tool_management.md]。
+**两类缺口**：
+- **学术已覆盖但企业场景未验证**（痛点 1、4、5）→ 工程团队可主导内部复测
+- **学术弱覆盖**（痛点 2、3）→ 需主动寻找新工作或自行做研究
 
 ---
 
-## 可证伪点追踪
+## 3. 学术研究按"工程缺口"重新组织
 
-论题声明若发现"主流 decision agent 必须依附于长期助理上下文才能闭环"，需修正。FLARE [3] 提供了第一个间接证据方向：若 worker 内部规划需要可靠的评估信号（r̂），而这个信号只有长期助理（openclaw）持有，那么 worker 对 manager 的依赖程度将远超"调度入口"，更接近"持续上下文依赖"。FLARE 本身未探讨这一场景，但其假设（规划时可用 r̂）恰好暴露了该风险点 [3: §Assumptions]。
+> 不是论文综述，而是把 6 篇论文重组到上面 5 个痛点 + 1 个先决问题。每节末尾给出对 Decision Agent 的可操作启示。
 
-OneFlow [4] 新增了论题的第二个可证伪方向：若 Decision Agent 的 workers 经审计属于同质配置（同一基础 LLM + 不同 prompt），则论题"多智能体 workers team 是核心架构挑战"将被部分证伪——单智能体工作流在精度上等价且成本更低。证伪路径：审计 BKN + ContextLoader + Dolphin 的基础模型是否共享。若共享：修正论题，将架构优先级从"多智能体协同机制"转向"单智能体工作流设计 + 前瞻规划"。若不共享：异质性得证，论题前提成立 [4: §3.1, Proposition 1]。
+### 3.1 §0 先决：多智能体结构是否必要？（OneFlow）
 
-Agent-as-a-Graph [5] 为论题提供了一个**支持性**而非证伪性的可验证预测：BKN "逻辑/行动分离"语义解耦相对"拼接单向量"在召回精度上有显著优势。证伪路径：若在 KWeaver 自身工具集上复测，类型化结构 vs. 拼接基线的 Recall@K 差距小于 5%（明显低于 [5] 报告的 14.9%），则 BKN 的实证支撑被削弱，需要寻找其他防御机制。若差距与 [5] 一致或更大：BKN 设计获得跨数据集的可重复证据 [5: §4.2]。
+[4] OneFlow 形式化证明（Proposition 1）：在确定性工具副作用、可见历史路由、共享随机性下，单 LLM 模拟器与多智能体系统轨迹分布完全等价。OneFlow 单智能体在 6 个公开基准上匹配或超越 AFlow 多智能体，成本降低 5–10×（HumanEval $0.020 vs. $0.198）。
 
-MAST [6] 新增了论题的第三个可证伪方向，与 OneFlow 形成"双判据"：在 Decision Agent 自家轨迹上跑 MAST 范式（Grounded Theory + IAA + LLM-as-Judge），度量 FC2 智能体间错位的实际占比。若 FC2 ≪ MAST 报告的 32.3%（例如 < 5%），即使 §0 异质性审计通过，"协同失真是核心挑战"这一论题成分也被部分证伪——失真已被 BKN+Dolphin 工程化解决，剩余瓶颈在别处（更可能是 FC1 系统设计或 FC3 校验）。若 FC2 处于或高于 32.3%，论题前提保留，并应将 14 个 FM 作为 Decision Agent 可观测性 SLA 的对标基线 [6: §4, Figure 1]。
+**对 Decision Agent 的强约束**：[4] 等价结论的前提是"同质工作流"（|B(W)| = 1，所有 agents 共享同一基础 LLM）。Decision Agent 的 BKN/ContextLoader/Dolphin/ISF 是否构成异质配置（不同基础模型或 LoRA），目前无内部审计结果。
 
-附带：MAST 也具体化了一条早被论题提及但未明确的可证伪点——thesis §1 "缺乏学术层面的系统性验证"措辞本身。MAST 的 1642 轨迹 + κ=0.88 + κ=0.79 域外验证已构成对协同失真维度的系统性验证；论题该处措辞需更新为"通用 MAS 已有基线，企业场景待对标"。具体处理选项见 `contradictions.md §Contradiction: 协同失真验证缺口已被部分填补`，由人类决定 Option A/B/C 哪个落地。
+两条决策路径——
+- **同质**：架构优先级应从"多智能体协同机制"转向"单智能体工作流设计 + 前瞻规划"
+- **异质**：论题前提保留，多智能体协同仍是核心挑战
+
+**这是优先级 #0 的工程决策**，先于其他研究方向。详见 §4 P0-1。
+
+### 3.2 痛点 1 + 2（协同失真 + 调度仲裁）→ MAST 范式 + GoA 路由
+
+[6] MAST 把"协同失真"从直觉变成可度量：FC2 32.3%，14 个 FM 中 FM-2.6 推理-动作错位 13.2%、FM-2.4 信息扣留、FM-2.5 输入忽略、FM-2.3 任务偏离 7.4%——直接对应 references/01 痛点 1 的"格式不统一 / 信息丢约束"症状。FM-1.3 步骤重复 15.7% 是 references/01 痛点 2 的"循环 / 重复劳动"可观测代理。
+
+[2] GoA 在推理时构图路由：节点采样 + 边采样 + 双向消息传递 + 图池化。GoAMax 用 3 agents 超越 MoA 的 6 agents，成本降低 58%——但仅在单轮 QA 验证。
+
+**对 Decision Agent 的可操作启示**：
+- **P0**：在 BKN+ContextLoader+Dolphin+ISF 真实业务轨迹上跑自家版 MAST（详见 §4 P0-2）
+- **P1**：FM-1.3 自家轨迹占比是 Dolphin 仲裁机制是否到位的可观测代理
+- GoA 的图路由不是 Decision Agent 内部机制，但**可作为 openclaw → decision agent 的元调度参考**——前提是 openclaw 工程化时确实需要"按 query 动态选 worker"
+
+### 3.3 痛点 3（Worker 独立闭环）→ COS-PLAY 间接支持 + FLARE 反证维度
+
+[1] COS-PLAY 的技能库智能体跨 episode 无状态运行，对论题"workers 不需依附长期助理"提供**初步支持**。但 COS-PLAY 在游戏域，Decision Agent 的工具是固定 BKN 注册表（不动态学习），路径正交——支持是间接的。
+
+[3] FLARE 假设规划时可用评估信号 r̂——若 Decision Agent worker 的 r̂ 只能由 openclaw 持有的长期上下文计算，则 worker 对 manager 的依赖远超"调度入口"。FLARE 没探讨这点，但**其假设暴露了一个反证维度**：若内部规划必须依赖外部上下文，独立闭环不成立。
+
+**操作建议**（详见 §4 P1-2）：审计 Decision Agent worker 的规划决策依赖项——若全部可由 BKN + 当前 trace 计算，独立闭环成立；若需外部对话历史或 manager 状态，需要重新评估分层架构。
+
+### 3.4 痛点 4（工具幻觉）→ Agent-as-a-Graph 首份实证
+
+[5] Agent-as-a-Graph 在 LiveMCPBench（527 工具）上把工具/agent 建为二部图两类节点 + 加权 RRF 检索：Recall@5 = 0.85 vs. ScaleMCP 的 0.74（+14.9%）。**这 14.9% 不是更好的 embedding，而是把"逻辑（agent 描述）"和"行动（工具描述）"从同一向量拆出来——结构上与 references/02 §方案二（BKN 驱动语义精准执行）完全同构**。
+
+最优类型权重 αA:αT = 1.5:1（轻度偏向 agent 覆盖）；架构无关（跨 8 种 embedding 模型 std≈0.02）。
+
+**对 Decision Agent 的可操作启示**：
+- **P0**：KWeaver 自家工具集（构建 5k+ 规模）复测类型化结构 vs. 拼接基线（详见 §4 P0-3）
+- **P1**：暴露 αA:αT 作为 ContextLoader 的可调旋钮——查询意图模糊时偏向父技能/父域覆盖（αA 高），意图明确时偏向工具级精准（αT 高）
+- **缺口**：[5] 不报 wall-clock 延迟也不分析图遍历成本，5k–10k 工具下是否仍可接受需自家测
+
+### 3.5 痛点 5（长链规划退化）→ FLARE 前瞻 MCTS
+
+[3] FLARE 形式化证明步进式推理（CoT / ReAct / Reflexion）等价于最大化局部代理分数的贪心策略，**结构性局限**而非工程缺陷：第一步决策中贪心策略 55.6% 选中陷阱动作，首步错误后单步恢复概率仅 5.4%。LLaMA-8B + FLARE 频繁超越 GPT-4o + 标准推理——规划能力无法通过参数规模弥补。
+
+[6] MAST 在执行层经验性佐证：FM-1.5 终止条件无感知 12.4% + FM-3.1 过早终止 6.2% = 18.6% 失败属于"规划深度不足"。
+
+**对 Decision Agent 的可操作启示**：
+- **P1**：FLARE 前瞻 MCTS 应作为 Dolphin 在长链 AutoFlow 中的规划骨架，而不仅仅是状态转移机（详见 §4 P1-1）
+- **缺口**：FLARE 假设确定性状态转移、显式状态、规划时可用评估信号——三条假设在企业开放任务上均可能违背
+
+### 3.6 横切诊断：MAST 范式作为 Decision Agent 可观测性 SLA
+
+MAST [6] 不只回答"协同失真"，也提供**可观测性的标准化范式**：
+- 14 个 FM × 3 FC 分类法：可作为 Decision Agent trace 的标签集合
+- Cohen's κ=0.88 IAA / 0.79 域外验证：作为内部失败标注的质量门槛
+- LLM-as-Judge κ=0.77：把 Decision Agent 的可观测性从"trace 收集"升级到"trace 自动诊断"
+- 同模型不同架构差异显著（同 GPT-4o，MetaGPT vs. ChatDev FC1/FC2 失败差 60–68%，FC3 差 1.56×）：架构选择 > 模型选择，且不存在全方位最优——Dolphin 设计取舍直接指向"显式审阅 → 减 FC1/FC2 但增 FC3"，ISF 安全层若加显式校验需关注 FC3 副作用
+
+---
+
+## 4. 直接服务当前差距的具体建议
+
+按工程优先级排列：**P0 = 立即开始，P1 = 下个迭代，P2 = 季度规划**。
+
+### P0-1 异质性审计（先决问题）
+**动机**：[4] OneFlow 等价结论的前提决定"多智能体架构是否仍是核心挑战"。
+**操作**：审 BKN/ContextLoader/Dolphin/ISF 的基础模型与适配器，确认是否满足 |B(W)| > 1（不同 base / 不同 LoRA / 不同温度的判定标准需先内部约定）。
+**输出**：一份内部 RFC，标记每个 worker 的基础模型来源 + 是否独立 LoRA。
+**判定**：若同质，启动"单智能体工作流 + FLARE 前瞻规划"研究方向；若异质，进入 P0-2 + P0-3。
+
+### P0-2 自家版 MAST 度量
+**动机**：[6] MAST 的 44/32/24 是开源 MAS 参考点，不是 Decision Agent 目标——企业长链任务的 FC 分布很可能显著偏离。
+**操作**：抽取 N≥150 条真实业务轨迹（混合长链任务 + 工具调用），3 名内部专家用 MAST 14 FM 标注，做 IAA 直到 Cohen's κ ≥ 0.85；然后用 LLM-as-Judge 标注其余轨迹。
+**输出**：Decision Agent 自家 FC1/FC2/FC3 分布 + 14 个 FM 占比；与 MAST 公开数字对比表。
+**判定**：FC2 < 5% 表示协同失真已被工程化解决，论题该成分被部分证伪；FC2 > 32% 表示论题前提强保留并应将 14 个 FM 作为可观测性 SLA 对标基线。
+
+### P0-3 类型化召回工具集复测
+**动机**：[5] 的 +14.9% Recall@5 在 KWeaver 自家工具集是否可迁移决定 BKN 设计的实证支撑强度（references/02 §方案二的有效性边界）。
+**操作**：构建 5k+ 规模 KWeaver 工具集 benchmark；分别用"类型化节点 + 加权 RRF（αA:αT=1.5:1）"和"拼接单向量"基线测 Recall@5 / nDCG@5；并扫描 αA:αT 在自家数据上的最优值。
+**输出**：BKN vs. ScaleMCP 风格基线对比表 + 最优 αA:αT 自家扫描结果 + wall-clock 延迟（[5] 未报）。
+**判定**：若 +Recall@5 < 5%，BKN 实证支撑被削弱，需寻找其他防御机制；若 ≥ 14.9%，BKN 设计获得跨数据集可重复证据，下一步把 αA:αT 暴露为 ContextLoader API。
+
+### P1-1 Dolphin 状态机的规划层升级
+**动机**：[3] FLARE FM-1.5/FM-3.1 共 18.6% 是直接动机；当前 Dolphin 是状态转移机不是规划器。
+**操作**：在长链 AutoFlow 上引入 FLARE 风格前瞻 MCTS + 后向价值传播 + 轨迹记忆，对照原状态机度量首步陷阱率。
+**输出**：长链任务上的"规划质量 vs. 延迟"曲线；判定企业可接受的延迟代价上界。
+
+### P1-2 Worker 独立性边界审计
+**动机**：references/01 痛点 #3 + FLARE [3] 假设暴露的反证维度。
+**操作**：选 N 个具代表性长链任务，标注每步规划决策依赖的输入来源（BKN / 当前 trace / openclaw 长期上下文）。
+**输出**：决策依赖热图——若长期上下文依赖 > 30%，分层架构需重新评估，二者耦合程度更接近"持续上下文依赖"而非"调度入口"。
+
+### P2 ContextLoader 类型权重旋钮 + 调度元层
+**动机**：[5] 暴露 αA:αT 作为可调；[2] GoA 提供 openclaw → decision agent 的元调度参考。
+**操作**：先做 P0-3 复测确认数字可迁移，再把 αA:αT 暴露为 BKN 检索 API 参数；调度元层作为 openclaw 工程化时的备选实现。
+
+---
+
+## 5. 阻塞与限制
+
+> 6 篇论文都验证不了的事情，需要 Decision Agent 团队自身回答。
+
+1. **企业长链任务上的规划-延迟权衡**：FLARE 前瞻 MCTS 在 KGQA / ALFWorld 验证；企业 AutoFlow 涉及外部审批门、延迟奖励、动态工具集——三者在论文中均未出现。
+2. **闭源 / 商业 MAS 的失败分布**：MAST [6] 明确排除 Manus 等闭源系统；Decision Agent 作为商业平台，其 FC 分布与开源 MAS 是否一致**没有任何直接证据**。
+3. **企业工具集 5k–10k 规模的检索延迟**：Agent-as-a-Graph [5] 在 527 工具量级验证，不报 wall-clock；ContextLoader 真正起作用的量级需自测。
+4. **异质性的边界条件**：OneFlow [4] 区分同质 vs. 异质，但"加 LoRA"是否构成异质未明确——是 base model 完全不同？是不同 LoRA 头？是不同温度？P0-1 审计前需先内部约定判定标准。
+5. **manager-worker 分层在企业场景的实证**：thesis 核心部署主张（decision agent + openclaw）目前只有间接支持证据（COS-PLAY 技能库无状态运行），无端到端实证。
+6. **MAST FC3 的解释循环**：MetaGPT/ChatDev 总失败少但 FC3 占比高——校验器把 FC1/FC2 重定向到 FC3 是架构定义的副产品，不是干净的根因信号。Decision Agent 的 ISF 安全层若加入显式校验，可能复制这一副作用。
+
+---
+
+## 6. 一句话结论
+
+**Decision Agent 当前最重要的工程决策是异质性审计（P0-1）——它决定了多智能体架构是否仍是核心挑战；其次是自家版 MAST 度量（P0-2）和 BKN 类型化召回复测（P0-3），三者合并后才能给出"下一阶段架构优先级是协同还是规划"的可证伪回答。在此之前，所有"workers 协同 / 长链规划 / 工具幻觉"的工程投入都是基于未验证假设的赌注。**
+
+---
+
+## 附录 A：Decision Agent 组件 ↔ 论文术语速查
+
+| Decision Agent | 论文术语 | 对应工作 |
+|---|---|---|
+| BKN（业务知识网络）| 类型化节点 + 显式关系建模 | Agent-as-a-Graph [5] 的二部图（agent / tool 双类型节点） |
+| ContextLoader（动态加载）| dynamic / lazy tool retrieval | [5] sources distribution: 39.13% agent + 34.44% tool via owner edge |
+| Dolphin 编排引擎 | MAS framework / orchestrator | MAST [6] 评测的 7 个开源 MAS（ChatDev、MetaGPT、HyperAgent…）|
+| Plan-Reason-Act 状态机 | step-wise reasoning（CoT / ReAct）| FLARE [3] 形式化为贪心策略 |
+| 前瞻规划 | lookahead / MCTS planning | FLARE [3] 的 MCTS + 后向价值传播 |
+| Workers team | multi-agent system | OneFlow [4]（同质等价）+ MAST [6]（失败分类） |
+| 协同失真 | inter-agent misalignment | MAST [6] FC2 类（FM-2.1 ~ FM-2.6）|
+| 工具幻觉 | tool hallucination | references/02 §1；[5] 缓解 via 类型化召回 |
+| ISF 安全层 + Human-in-the-loop | explicit verification | MAST [6] FC3 类 + Insight 3（"verifier presence 不充分"）|
+| Autoflow 流程编排 | workflow / multi-step task | OneFlow [4] AFlow 比较场景 |
+
+---
+
+## 附录 B：可证伪点追踪
+
+| # | 可证伪声明 | 证伪路径 | 触发论文 |
+|---|---|---|---|
+| 1 | 多智能体 workers team 是 Decision Agent 核心架构挑战 | 异质性审计：若同质（\|B(W)\|=1）则部分证伪 | OneFlow [4] |
+| 2 | BKN 逻辑/行动分离比拼接单向量更精准 | KWeaver 自家工具集复测：若 +Recall@5 < 5% 则证据被削弱 | Agent-as-a-Graph [5] |
+| 3 | workers 协同失真是 Decision Agent 关键瓶颈 | 自家 FC2 度量：若 < 5% 则部分证伪（已工程化解决）；若 > 32% 则强保留 | MAST [6] |
+| 4 | workers 不需依附长期助理上下文即可闭环 | 决策依赖热图：若长期上下文依赖 > 30% 则分层架构需重新评估 | FLARE [3] / COS-PLAY [1] 间接 |
+| 5 | 步进式 Plan-Reason-Act 在长链任务足够 | FLARE 已形式化证伪（首步陷阱率 55.6%、恢复率 5.4%）；自家长链任务延迟代价测试可决定是否引入 MCTS | FLARE [3] / MAST FM-1.5 [6] |
+
+---
+
+## 附录 C：参考资料
+
+**论文**（详见 [`notes/`](notes/)）：
+- [01] COS-PLAY: Co-Evolving LLM Decision and Skill Bank Agents (Wu et al., 2026)
+- [02] GoA: Graph-of-Agents (Yun et al., ICLR 2026)
+- [03] FLARE: Future-Aware Lookahead via MCTS (Wang et al., 2026)
+- [04] OneFlow: Single-Agent Sufficiency Baseline (Xu et al., 2026)
+- [05] Agent-as-a-Graph: Knowledge Graph for Tool/Agent Retrieval (Nizar et al., 2025)
+- [06] MAST: Multi-Agent Systems Failure Taxonomy (Cemri et al., 2025)
+
+**项目资料**（脱敏后入 [`references/`](references/)）：
+- [01] Decision Agent 特性梳理（产品 PPT 来源）
+- [02] Decision Agent 工具管理（产品 PPT 来源）
+
+**待补**：
+- 闭源 / 商业 MAS 的失败模式评测（如有）
+- ContextLoader 5k+ 规模工具检索的现有学术 benchmark
 
 ---
 
 ## 版本更新日志
 
-| 版本 | 日期 | 新增论文 | 关键变化 |
-|------|------|---------|---------|
-| v1 | 2026-04-27 | [01] COS-PLAY | 建立技能库协同进化基线；独立部署初步支持 |
-| v2 | 2026-04-27 | [02] GoA | 增加推理时图路由参考；调度链轻量实现讨论 |
-| v3 | 2026-04-27 | [03] FLARE | 增加单智能体规划机制层；步进式推理结构性局限诊断；可证伪点首次具体化 |
-| v4 | 2026-04-27 | [04] OneFlow | 新增多智能体必要性挑战；引入§0结构先决层；可证伪点二（同质配置审计）具体化 |
-| v5 | 2026-04-29 | [05] Agent-as-a-Graph | 新增调用前检索层；BKN 语义解耦的首份学术实证（+14.9% Recall@5）；规模缺口（527 工具）作为 Decision Agent 团队可填补的研究空白 |
-| v6 | 2026-04-30 | [06] MAST | 新增§⊥横切诊断维度；协同失真从"未度量"→"已有通用基线"；可证伪点三（自家 FC2 度量）具体化；Decision Agent 工程落地 4 条建议 |
+| 版本 | 日期 | 关键变化 |
+|---|---|---|
+| v1 | 2026-04-27 | [01] COS-PLAY 加入；建立技能库协同进化基线 |
+| v2 | 2026-04-27 | [02] GoA 加入；推理时图路由参考 |
+| v3 | 2026-04-27 | [03] FLARE 加入；步进式推理结构性局限诊断 |
+| v4 | 2026-04-27 | [04] OneFlow 加入；多智能体必要性挑战 |
+| v5 | 2026-04-29 | [05] Agent-as-a-Graph 加入；BKN 语义解耦首份学术实证 |
+| v5.1 | 2026-04-30 | [06] MAST 加入（PR #9）；横切诊断维度 |
+| **v3.0 重写** | 2026-04-30 | **重构为 Position Paper 形态**：新增 §0 v1→v6 校准、§1 战略坐标、§2 痛点-论文映射；§3 按工程缺口而非论文顺序组织；§4 按工程优先级排列建议；新增 §5 阻塞与限制、§6 一句话结论；附录 B 可证伪点追踪 |
