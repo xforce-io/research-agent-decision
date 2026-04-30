@@ -7,7 +7,7 @@
 
 ## Working thesis
 
-Decision Agent 的核心架构挑战不是"让单个 worker 更聪明"，而是在保证可观测性、可审计性的前提下，使多智能体 workers team 能够可靠完成端到端的企业业务任务。当前技术栈（BKN 语义底座 + ContextLoader 动态加载 + Dolphin 编排引擎）解决了上下文管理和语义对齐问题，但 workers 之间的协同失真、长链规划退化和多智能体调度仲裁，仍缺乏学术层面的系统性验证。该论点可被证伪——若发现主流解决方案不需要专门的多智能体协调机制，靠单一足够强的 LLM 端到端完成即可，则需修正架构优先级。
+Decision Agent 的核心架构挑战不是"让单个 worker 更聪明"，而是在保证可观测性、可审计性的前提下，使多智能体 workers team 能够可靠完成端到端的企业业务任务。当前技术栈（BKN 语义底座 + ContextLoader 动态加载 + Dolphin 编排引擎）解决了上下文管理和语义对齐问题。其中 workers 协同失真已有 MAST (Cemri et al. 2025, arxiv:2503.13657) 这类系统性失败模式分类——FC2 Inter-Agent Misalignment 占 32.3%，FM-1.3 Step Repetition 15.7%，FM-1.5 Unaware of Termination 12.4%，并提供 agentdash 可复用诊断工具。Decision Agent 的差异化命题因此从"做学术验证"重定位为：(a) 企业长链任务下 FC1/FC2/FC3 权重是否与开源 MAS 一致；(b) Dolphin 状态机对 FM-1.3/FM-1.5 等高频失败模式的工程级缓解能否被量化。长链规划退化和多智能体调度仲裁仍缺乏企业场景的系统性验证。该论点可被证伪——若发现主流解决方案不需要专门的多智能体协调机制，靠单一足够强的 LLM 端到端完成即可，则需修正架构优先级。
 
 多智能体 workers 的协同质量受规划机制的结构性约束。步进式推理（ReAct/CoT）在形式上等价于贪心策略，在需要超过若干步序列决策的任务上将系统性失败——这与 Decision Agent 的长链业务任务（"查询-分析-撰写-校验-审批-落地"等多步 AutoFlow）直接相关。前瞻性规划（MCTS 类方法）从理论上可修复规划深度问题，但会引入延迟代价。Decision Agent 需要在规划质量与响应延迟之间做明确工程取舍，目前该取舍点尚无经过企业场景验证的基准。
 
