@@ -2,31 +2,59 @@
 # Edit this to declare your topic's research questions, criteria, sources.
 
 meta:
-  topic_oneline: "Decision agent —— 一种以 multi-agent workers team 形式协同完成任务的决策架构；与之相邻的 openclaw 是 7×24 持续运行的个人助理形态，可作为 decision agent 的上层调度入口。"
+  topic_oneline: "Decision Agent —— 治理优先、Harness-first 的企业级决策智能体底座（BKN+ISF+TraceAI+ContextLoader），通过 5 个增强能力（开箱即用 / Heartbeat+Cron 常驻 / Shared Workspace / Composer 多智能体组合 / 跨会话层级化 Memory）从被动响应模式演进到企业生产级多智能体系统。OpenClaw 是治理深度更轻的并列形态，Decision Agent 可独立闭环。"
 
 research_questions:
   - id: RQ1
-    text: "How does decision agent 作为独立的 multi-agent workers team 完成端到端任务？"
+    text: "How does Decision Agent 在治理优先约束下（BKN/ISF/TraceAI/ContextLoader 垂直整合）独立完成多步业务任务的可审计闭环？特别是 Composer + Shared Workspace 如何工程化实现 0.8 路线图中的多智能体协同能力，并与 OneFlow/MAST/GoA 等学术发现形成对照？"
   - id: RQ2
-    text: "How can openclaw (7×24 个人助理) 与 decision agent 结合，形成类似经理与员工的协作结构？"
+    text: "How does Heartbeat + Cron + Reflection 让 Decision Agent 从被动请求-响应演进为主动 7×24 数字员工？该常驻 Runtime 范式与 OpenClaw（轻量级个人助理）的边界判据是什么——治理深度差异如何转化为工程边界？"
   - id: RQ3
-    text: "Whether 当前的 decision agent 设计在脱离长期助理上下文 (如 openclaw) 时仍能独立闭环。"
+    text: "How does 跨会话层级化 Memory（User/Role/Org）+ ContextLoader 体系化融合，让新部署 Agent 可继承岗位经验，且记忆库不会无限膨胀？现有 build_memory/search_memory 基础链路在企业级治理（去重/合并/衰减/审计）需求下的演进路径？"
+  - id: RQ4
+    text: "Whether 5 个 0.8 增强能力（开箱即用 / Heartbeat+Cron / Shared Workspace / Composer / Memory）中任一可被通用 Agent 框架（LangGraph/CrewAI/Dify）+ 简单封装替代——若是，则 Harness-first 垂直整合的战略主张需重新评估。"
 
 inclusion_criteria:
-  - "结合近期业界发展，能反映 decision agent 的技术路径或未来方向。"
-  - "Must address one of the research questions above."
+  - "结合近期业界发展，能反映 Decision Agent 治理优先 / Harness-first 路径的技术方向。"
+  - "Must address one of the research questions above, OR provide academic evidence for one of the 5 design goals (开箱即用 / Heartbeat+Cron / Shared Workspace / Composer / Memory)."
+  - "强偏好：有 Plan-Reason-Act 分层、可观测性、协同失真量化、工具检索机制分析、跨会话记忆机制的工作。"
 
 exclusion_criteria:
-  - "Pure benchmark papers without methodological contribution."  # TODO: revisit after first few papers
+  - "Pure benchmark papers without methodological contribution."
+  - "单一 LLM 能力提升类（更大模型 / 更好 prompt）—— 与瓶颈不匹配。"
+  - "仅在游戏 / 形式化状态空间环境验证的规划方法 —— 确定性状态转移假设不适用企业数据场景。"
+  - "通用 DAG 工作流引擎 / 通用 A2A 协议 / 端到端全自动编排 —— references/03 §四明确非目标。"
+  - "依赖自研 / 蒸馏模型作为前置假设的方法 —— 本轮迭代非目标。"
+  - "纯 prompt 工程解决工具幻觉 —— BKN 语义结构化才是采用路径。"
 
 sources:
   - kind: arxiv
     queries:
-      - "multi-agent LLM"
-      - "LLM agent decision making"
-      - "agentic workflow orchestration"
-      - "autonomous agent task planning"
-      - "agent collaboration framework"
+      # 多智能体协同（Shared Workspace + Composer）
+      - "multi-agent LLM coordination"
+      - "shared workspace multi-agent"
+      - "agent team task decomposition"
+      - "multi-agent failure modes"
+      # 长链规划（FLARE / Plan-Execute）
+      - "LLM agent long-horizon planning"
+      - "lookahead planning LLM agent"
+      - "plan and execute agent"
+      # 工具召回（ContextLoader + BKN）
+      - "tool retrieval large-scale agent"
+      - "semantic tool routing LLM"
+      - "active tool discovery agent"
+      # Heartbeat / 常驻 Runtime（学术稀缺，所以广撒网）
+      - "always-on autonomous agent"
+      - "scheduled agent execution"
+      - "agent reflection self-monitoring"
+      - "proactive LLM agent"
+      # 跨会话记忆 + 层级化
+      - "long-term memory LLM agent"
+      - "hierarchical agent memory"
+      - "cross-session agent personalization"
+      # 治理 / 可审计 / Harness
+      - "agent observability trace"
+      - "harness engineering LLM"
     priority: high
 
 paper_axes: []
