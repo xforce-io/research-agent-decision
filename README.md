@@ -20,13 +20,12 @@ Decision agent 是一种通过 multi-agent workers team 协同完成任务的决
 | [10](notes/10_collaborative_memory_multi_user_memory_sharing.md) | Collaborative Memory: Multi-User Memory Sharing in LLM Agents with Dynamic Access Control | Memory / Cross-Session Layered Access Control | high | ✅ deep-read |
 | [11](notes/11_retrieval_models_aren_t_tool_savvy.md) | Retrieval Models Aren't Tool-Savvy: Benchmarking Tool Retrieval for Large Language Models | Tool Management / Retrieval Benchmarking | high | ✅ deep-read |
 | [12](notes/12_automated_composition_of_agents_a_knapsack.md) | Automated Composition of Agents: A Knapsack Approach for Agentic Component Selection | Composer / Sandbox-Validated Knapsack Selection | high | ✅ deep-read |
+| [13](notes/13_toolomni_enabling_open_world_tool_use.md) | ToolOmni: Enabling Open-World Tool Use via Agentic Learning with Proactive Retrieval and Grounded Execution | Tool Management / RL-Trained Proactive Retrieval | high | ✅ deep-read |
+| [16](notes/16_g_memory_tracing_hierarchical_memory_for.md) | G-Memory: Tracing Hierarchical Memory for Multi-Agent Systems | Memory / MAS Cross-Trial Self-Evolution | high | ✅ deep-read |
 
 ## Thesis
 
-- **核心定位**：Decision Agent 是"治理优先、Harness-first 的企业级决策智能体底座"——通过 BKN + ISF + TraceAI + ContextLoader 四支柱垂直整合，价值锚点是 Dify/Coze 无法企及的语义治理深度，而非通用编排市场。
-- **0.8 增强主张与张力**：5 个 design goals（模板 / Heartbeat+Cron / Shared Workspace / Composer / 层级化 Memory）需被设计为"有治理边界的有限主动模式"——goal 2 主动 Runtime 与 ISF 治理存在结构性张力；goal 3/4 须按"内部信息处理 vs 外部副作用"分轨。
-- **当前证据图**：BKN 语义解耦获 [5][7] 双证支持（+14.9% Recall@5 / +25 pp），但 [11] 进一步揭示通用 IR 在工具检索上 Completeness@10 ≤ 50%、必须做工具检索专用微调；MAST [6] 把"协同失真"推进到"已有通用基线"；OneFlow [4] 折叠等价边界已被 [9][12] 双反证细化（上下文 fit + supervisor delegation 容量）；[12] 为 goal 4 Composer 提供 design-time sandbox + ZCL knapsack pipeline 原型。
-- **可证伪点**：若 Decision Agent 经审计属同质配置、5 个增强能力可由通用框架替代、自家 FC2 ≪ 32.3%、或 BKN + 通用 embedding 在 5k+ 规模 Recall@10 ≥ 50%，则"Harness-first 垂直整合"主张需重估。
+Decision Agent 是"治理优先、Harness-first 的企业级决策智能体底座"，5 个 0.8 design goals 须被设计为有治理边界的有限主动模式：goal 2 (Heartbeat+Cron) 与 ISF 存在结构性张力，goal 3/4 须按"内部信息处理 vs 外部副作用"分轨。BKN 语义解耦获 [5][7][11][13] 四条证据线支持，但通用 embedding 在 5k+ 工具规模 NDCG@10 ≤ 42%，工具检索专用训练（ToolRet-train [11]）与 RL 查询改写（ToolOmni [13]）是工程必需；goal 4 Composer 获 [12] design-time sandbox + ZCL knapsack 原型，goal 5 Memory 获 [10] 访问控制形式化 + [16] MAS 跨轨迹自演进两层工程证据，但衰减/遗忘/冲突合并机制在文献中仍是空白。可证伪：若 BKN + 通用 embedding 在 5k+ 规模 Recall@10 ≥ 50%，或 [16] G-Memory 的 1-hop 最优性在企业异构任务分布下不成立，则 goal 5 核心假设需修订。
 
 See [`.researcher/thesis.md`](.researcher/thesis.md) for the full working thesis.
 
@@ -35,4 +34,4 @@ See [`.researcher/thesis.md`](.researcher/thesis.md) for the full working thesis
 - [`notes/00_research_landscape.md`](notes/00_research_landscape.md) — living synthesis of all read papers
 - [`.researcher/thesis.md`](.researcher/thesis.md) — working thesis and research posture
 
-*Last Updated: 2026-05-02 (v12)*
+*Last Updated: 2026-05-02 (v14)*
