@@ -22,10 +22,11 @@ Decision agent 是一种通过 multi-agent workers team 协同完成任务的决
 | [12](notes/12_automated_composition_of_agents_a_knapsack.md) | Automated Composition of Agents: A Knapsack Approach for Agentic Component Selection | Composer / Sandbox-Validated Knapsack Selection | high | ✅ deep-read |
 | [13](notes/13_toolomni_enabling_open_world_tool_use.md) | ToolOmni: Enabling Open-World Tool Use via Agentic Learning with Proactive Retrieval and Grounded Execution | Tool Management / RL-Trained Proactive Retrieval | high | ✅ deep-read |
 | [16](notes/16_g_memory_tracing_hierarchical_memory_for.md) | G-Memory: Tracing Hierarchical Memory for Multi-Agent Systems | Memory / MAS Cross-Trial Self-Evolution | high | ✅ deep-read |
+| [17](notes/17_fademem_biologically_inspired_forgetting_for_efficient.md) | FadeMem: Biologically-Inspired Forgetting for Efficient Agent Memory | Memory / Importance-Modulated Decay & Forgetting | high | ✅ deep-read |
 
 ## Thesis
 
-Decision Agent 是"治理优先、Harness-first 的企业级决策智能体底座"，5 个 0.8 design goals 须被设计为有治理边界的有限主动模式：goal 2 (Heartbeat+Cron) 与 ISF 存在结构性张力，goal 3/4 须按"内部信息处理 vs 外部副作用"分轨。BKN 语义解耦获 [5][7][11][13] 四条证据线支持，但通用 embedding 在 5k+ 工具规模 NDCG@10 ≤ 42%，工具检索专用训练（ToolRet-train [11]）与 RL 查询改写（ToolOmni [13]）是工程必需；goal 4 Composer 获 [12] design-time sandbox + ZCL knapsack 原型，goal 5 Memory 获 [10] 访问控制形式化 + [16] MAS 跨轨迹自演进两层工程证据，但衰减/遗忘/冲突合并机制在文献中仍是空白。可证伪：若 BKN + 通用 embedding 在 5k+ 规模 Recall@10 ≥ 50%，或 [16] G-Memory 的 1-hop 最优性在企业异构任务分布下不成立，则 goal 5 核心假设需修订。
+Decision Agent 是"治理优先、Harness-first 的企业级决策智能体底座"，5 个 0.8 design goals 须被设计为有治理边界的有限主动模式：goal 2 (Heartbeat+Cron) 与 ISF 存在结构性张力，goal 3/4 须按"内部信息处理 vs 外部副作用"分轨。BKN 语义解耦获 [5][7][11][13] 四条证据线支持，但通用 embedding 在 5k+ 工具规模 NDCG@10 ≤ 42%，工具检索专用训练与 RL 查询改写是工程必需；goal 4 Composer 获 [12] design-time sandbox + ZCL knapsack 原型，goal 5 Memory 三个独立维度由 [10] 访问控制 + [16] 跨轨迹自演进 + [17] 重要性调制衰减/冲突/融合 各自填补，但 LLM 仲裁在企业合规场景的安全性与多租户独立衰减仍是工程空缺。可证伪：若 BKN + 通用 embedding 在 5k+ 规模 Recall@10 ≥ 50%、[16] 1-hop 最优性在企业异构任务下不成立、或 [17] contradictory 33.8% 误分率在合规场景不可接受，则 goal 5 核心假设需修订。
 
 See [`.researcher/thesis.md`](.researcher/thesis.md) for the full working thesis.
 
@@ -34,4 +35,4 @@ See [`.researcher/thesis.md`](.researcher/thesis.md) for the full working thesis
 - [`notes/00_research_landscape.md`](notes/00_research_landscape.md) — living synthesis of all read papers
 - [`.researcher/thesis.md`](.researcher/thesis.md) — working thesis and research posture
 
-*Last Updated: 2026-05-02 (v14)*
+*Last Updated: 2026-05-04 (v15)*
