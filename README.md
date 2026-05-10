@@ -24,10 +24,11 @@ Decision agent 是一种通过 multi-agent workers team 协同完成任务的决
 | [16](notes/16_g_memory_tracing_hierarchical_memory_for.md) | G-Memory: Tracing Hierarchical Memory for Multi-Agent Systems | Memory / MAS Cross-Trial Self-Evolution | high | ✅ deep-read |
 | [17](notes/17_fademem_biologically_inspired_forgetting_for_efficient.md) | FadeMem: Biologically-Inspired Forgetting for Efficient Agent Memory | Memory / Importance-Modulated Decay & Forgetting | high | ✅ deep-read |
 | [18](notes/18_governed_memory_a_production_architecture_for.md) | Governed Memory: A Production Architecture for Multi-Agent Workflows | Memory / Org-Level Governed Memory & Schema Lifecycle | high | ✅ deep-read |
+| [19](notes/19_think_before_you_act_a_neurocognitive.md) | Think Before You Act — A Neurocognitive Governance Model for Autonomous AI Agents | Governance / Pre-Action Action-Level Deliberation | high | ✅ deep-read |
 
 ## Thesis
 
-Decision Agent 是"治理优先、Harness-first 的企业级决策智能体底座"，5 个 0.8 design goals 须被设计为有治理边界的有限主动模式：goal 2 (Heartbeat+Cron) 与 ISF 存在结构性张力，goal 3/4 须按"内部信息处理 vs 外部副作用"分轨。BKN 语义解耦获 [5][7][11][13] 四条证据线支持，但通用 embedding 在 5k+ 工具规模 NDCG@10 ≤ 42%，工具检索专用训练与 RL 查询改写是工程必需；goal 4 Composer 获 [12] design-time sandbox + ZCL knapsack 原型。Goal 5 Memory 完整工程蓝图由四篇论文堆叠构成：[10] 用户/agent ACL + [16] 跨轨迹 insight 演进 + [17] 重要性调制衰减/冲突仲裁 + [18] 组织级治理路由 + schema lifecycle，但 multi-agent concurrent write conflict 被 [18] 自陈未解决，是 goal 3+5 合并区无任何已读论文系统性回答的工程空白。可证伪：若 BKN + 通用 embedding 在 5k+ 规模 Recall@10 ≥ 50%、[16] 1-hop 最优性在企业异构任务下不成立、或 [17]/[18] LLM 仲裁误分率在合规场景不可接受，则 goal 5 核心假设需修订。
+Decision Agent 是"治理优先、Harness-first 的企业级决策智能体底座"，5 个 0.8 design goals 须被设计为有治理边界的有限主动模式：goal 2 与 ISF 结构性张力、goal 3/4 须按"内部信息处理 vs 外部副作用"分轨。治理基础设施由 [19] PAGRL（动作层：4 阶段 deliberation + 4 层级联规则 + 3 条 escalation 触发）+ [18] Governed Memory（记忆层：dual modality + 分级路由 + provenance + schema lifecycle）构成首份参考架构骨架，但两者均依赖 LLM 概率输出且 multi-agent concurrent write conflict 自陈未解决——必须以 AgentSpec 类外部强制层兜底。BKN 语义解耦获 [5][7][11][13] 四条证据线支持，goal 5 Memory 工程蓝图由 [10]+[16]+[17]+[18] 四层堆叠构成。可证伪：若 PAGRL ESCALATE 漏报率 > 10%、BKN + 通用 embedding 在 5k+ 规模 Recall@10 ≥ 50%、或 [17]/[18] LLM 仲裁误分率在合规场景不可接受，则核心假设需修订。
 
 See [`.researcher/thesis.md`](.researcher/thesis.md) for the full working thesis.
 
@@ -36,4 +37,4 @@ See [`.researcher/thesis.md`](.researcher/thesis.md) for the full working thesis
 - [`notes/00_research_landscape.md`](notes/00_research_landscape.md) — living synthesis of all read papers
 - [`.researcher/thesis.md`](.researcher/thesis.md) — working thesis and research posture
 
-*Last Updated: 2026-05-10 (v16)*
+*Last Updated: 2026-05-10 (v17)*
